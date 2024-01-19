@@ -105,6 +105,8 @@ router.post('/login', async (req, res, next) => {
         }
 
         
+        // Log successful login
+        logger.info(`User logged in: ${user.username}`);
 
         // Generate JWT token
         const payload = {
@@ -115,10 +117,14 @@ router.post('/login', async (req, res, next) => {
         };
 
         jwt.sign(payload, process.env.SECRET, { expiresIn: '30d' }, (err, token) => {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) {
+                logger.error(`JWT token generation error: ${err.message}`);
+                return res.status(500).json({ error: err.message });
+            }
             res.json({ status: 'success', token });
         });
     } catch (error) {
+        logger.error(`Login error: ${error.message}`);
         next(error);
     }
 });

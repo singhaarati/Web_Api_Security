@@ -8,8 +8,6 @@ const { verifyUser } = require('../middlewares/auth')
 
 //booking
 router.route('/')
-    // .get(bookingDestinationController.getABookingDestination)
-    // .post(bookingDestinationController.createBookingDestination)
     .put((req, res) => {
         res.status(405).json({ error: "PUT request is not allowed" })
     })

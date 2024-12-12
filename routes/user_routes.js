@@ -7,7 +7,7 @@ const { hash } = require('bcryptjs')
 const userController = require('../controllers/userController')
 const { verifyUser } = require('../middlewares/auth')
 
-router.post('/register', async (req, res, next) => {
+router.post('/register', (req, res, next) => {
     const { username, password, fullname, email, role } = req.body;
 
     // Specify the minimum and maximum password length
@@ -31,37 +31,21 @@ router.post('/register', async (req, res, next) => {
         });
     }
 
-    try {
-        // Check if the user exists
-        const existingUser = await User.findOne({ username });
-        if (existingUser) {
-            // Check if the password is not in the password history
-            const isPasswordInHistory = existingUser.passwordHistory.some((prevPassword) => {
-                return bcrypt.compareSync(password, prevPassword);
+    User.findOne({ username: username })
+        .then((user) => {
+            if (user) return res.status(400).json({ error: 'Duplicate user' });
+
+            bcrypt.hash(password, 10, (err, hash) => {
+                if (err) return res.status(500).json({ error: err.message });
+
+                User.create({ username, password: hash, fullname, role, email })
+                    .then((user) => {
+                        res.status(201).json(user);
+                    })
+                    .catch(next);
             });
-
-            if (isPasswordInHistory) {
-                return res.status(400).json({ error: 'Cannot reuse recent passwords.' });
-            }
-        }
-
-        // Hash the password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Update user's password and password history
-        const updatedUser = await User.findOneAndUpdate(
-            { username },
-            {
-                $set: { password: hashedPassword },
-                $push: { passwordHistory: hashedPassword }
-            },
-            { new: true }
-        );
-
-        res.status(201).json(updatedUser);
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
+        })
+        .catch(next);
 });
 
 
@@ -104,10 +88,6 @@ router.post('/login', async (req, res, next) => {
             return res.status(401).json({ error: 'Password has expired. Please change your password.' });
         }
 
-        
-        // Log successful login
-        logger.info(`User logged in: ${user.username}`);
-
         // Generate JWT token
         const payload = {
             id: user.id,
@@ -117,18 +97,13 @@ router.post('/login', async (req, res, next) => {
         };
 
         jwt.sign(payload, process.env.SECRET, { expiresIn: '30d' }, (err, token) => {
-            if (err) {
-                logger.error(`JWT token generation error: ${err.message}`);
-                return res.status(500).json({ error: err.message });
-            }
+            if (err) return res.status(500).json({ error: err.message });
             res.json({ status: 'success', token });
         });
     } catch (error) {
-        logger.error(`Login error: ${error.message}`);
         next(error);
     }
 });
-
 
 router.route('/userinfo')
     .get(verifyUser, userController.getUserById)
